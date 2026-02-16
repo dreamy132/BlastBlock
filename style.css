@@ -1,9 +1,9 @@
 body {
     margin: 0;
-    background: #111;
-    color: white;
     font-family: Arial, sans-serif;
     overflow: hidden;
+    background: #111;
+    color: white;
 }
 
 #game-container {
@@ -18,10 +18,11 @@ body {
 }
 
 canvas {
-    background: #222;
     display: block;
     margin: auto;
     touch-action: none;
+    border-radius: 8px;
+    background: var(--canvas-bg, #222);
 }
 
 #block-container {
@@ -32,15 +33,29 @@ canvas {
 }
 
 .block {
-    background: #4CAF50;
     width: 60px;
     height: 60px;
     border-radius: 10px;
+    cursor: grab;
+    box-shadow: 0 0 6px rgba(0,0,0,0.5);
+    transition: transform 0.1s, box-shadow 0.2s;
 }
 
-.hidden {
-    display: none;
+.block:active {
+    cursor: grabbing;
+    transform: scale(1.2);
+    box-shadow: 0 0 15px rgba(0,0,0,0.8);
 }
+
+.dragging {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+    transform: scale(1.2);
+    opacity: 0.8;
+}
+
+.hidden { display: none; }
 
 #gameOverScreen {
     position: fixed;
@@ -55,4 +70,40 @@ canvas {
     background: #222;
     padding: 30px;
     border-radius: 15px;
+    text-align: center;
+}
+
+.floating-score {
+    position: absolute;
+    font-weight: bold;
+    color: #facc15;
+    font-size: 20px;
+    pointer-events: none;
+    animation: floatUp 1s ease-out forwards;
+}
+
+@keyframes floatUp {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-40px); opacity: 0; }
+}
+
+/* Theme Variables */
+:root {
+    --canvas-bg: #222;
+    --block-glow: #4CAF50;
+}
+
+body.theme-dark {
+    --canvas-bg: #111;
+    --block-glow: #4CAF50;
+}
+
+body.theme-neon {
+    --canvas-bg: #000;
+    --block-glow: #0ff;
+}
+
+body.theme-pastel {
+    --canvas-bg: #fef6e4;
+    --block-glow: #ff9a9e;
 }
