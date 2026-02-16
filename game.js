@@ -1,52 +1,41 @@
+// === Canvas & Grid ===
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const blockContainer = document.getElementById("block-container");
+const scoreEl = document.getElementById("score");
+const highScoreEl = document.getElementById("highScore");
 
 let gridSize = 8;
 let grid = [];
 let cellSize = 0;
-
 let score = 0;
 let highScore = localStorage.getItem("highScore") || 0;
-
 let dragEl = null;
 let activeShape = null;
-let undoGrid = null;
+let theme = 'dark'; // default
+document.body.classList.add('theme-dark');
 
 const COLORS = ["#38bdf8","#f472b6","#34d399","#facc15","#a78bfa"];
 const SHAPES = [
-    [[1]],                  // dot
-    [[1,1]],                // line horizontal
-    [[1],[1]],              // line vertical
-    [[1,1,1]],              // line3 horizontal
-    [[1],[1],[1]],          // line3 vertical
-    [[1,1],[1,1]],          // square
-    [[1,0],[1,0],[1,1]],    // L shape
-    [[1,1,1],[0,1,0]]       // T shape
+    [[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1],[1,1]],[[1,0],[1,0],[1,1]],[[1,1,1],[0,1,0]]
 ];
 
-// -------------------
-// Initialization
-// -------------------
+// === Initialize ===
 function init(){
-    cellSize = Math.min(canvas.width / gridSize, canvas.height / gridSize);
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight*0.6;
+    cellSize = Math.min(canvas.width/gridSize, canvas.height/gridSize);
     grid = Array(gridSize).fill().map(()=>Array(gridSize).fill(null));
     score = 0;
-    document.getElementById("score").innerText = score;
-    document.getElementById("highScore").innerText = highScore;
+    scoreEl.innerText = score;
+    highScoreEl.innerText = highScore;
     drawGrid();
     refillDock();
 }
-window.addEventListener("resize", ()=>{init();});
+window.addEventListener("resize", init);
 
-// -------------------
-// Grid Drawing
-// -------------------
+// === Grid Rendering ===
 function drawGrid(){
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-    cellSize = Math.min(canvas.width/gridSize, canvas.height/gridSize);
-
     ctx.clearRect(0,0,canvas.width,canvas.height);
     for(let y=0;y<gridSize;y++){
         for(let x=0;x<gridSize;x++){
@@ -54,15 +43,16 @@ function drawGrid(){
             ctx.strokeRect(x*cellSize, y*cellSize, cellSize, cellSize);
             if(grid[y][x]){
                 ctx.fillStyle = grid[y][x];
+                ctx.shadowColor = getComputedStyle(document.body).getPropertyValue('--block-glow');
+                ctx.shadowBlur = 10;
                 ctx.fillRect(x*cellSize, y*cellSize, cellSize, cellSize);
+                ctx.shadowBlur = 0;
             }
         }
     }
 }
 
-// -------------------
-// Dock / Shapes
-// -------------------
+// === Dock / Shapes ===
 function refillDock(){
     blockContainer.innerHTML = '';
     for(let i=0;i<3;i++){
@@ -82,9 +72,7 @@ function createShape(shape){
     blockContainer.appendChild(el);
 }
 
-// -------------------
-// Drag & Drop
-// -------------------
+// === Drag & Drop ===
 function startDrag(e, el, shape){
     e.preventDefault();
     dragEl = el.cloneNode(true);
@@ -101,26 +89,25 @@ function moveDrag(e){
     if(!dragEl) return;
     dragEl.style.left = e.clientX - dragEl.offsetWidth/2 + "px";
     dragEl.style.top = e.clientY - dragEl.offsetHeight/2 + "px";
+    drawGrid();
+    showPreview(e);
 }
 
 function stopDrag(e, original){
     document.removeEventListener("pointermove", moveDrag);
     let pos = getGridPos(e);
     if(pos && canPlace(pos.r,pos.c,activeShape)){
-        undoGrid = JSON.parse(JSON.stringify(grid));
         placeShape(pos.r,pos.c,activeShape);
         original.remove();
         if(blockContainer.children.length===0) refillDock();
-        checkLines();
+        checkLines(pos.r,pos.c);
     } else {
         original.classList.remove("hidden");
     }
     if(dragEl){ dragEl.remove(); dragEl = null; }
 }
 
-// -------------------
-// Grid Helpers
-// -------------------
+// === Grid Helpers ===
 function getGridPos(e){
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -145,41 +132,58 @@ function canPlace(r,c,shape){
 function placeShape(r,c,shape){
     for(let i=0;i<shape.map.length;i++){
         for(let j=0;j<shape.map[0].length;j++){
-            if(shape.map[i][j]){
-                grid[r+i][c+j] = shape.color;
-            }
+            if(shape.map[i][j]) grid[r+i][c+j] = shape.color;
         }
     }
     drawGrid();
 }
 
-// -------------------
-// Check Lines & Score
-// -------------------
-function checkLines(){
+// === Preview ===
+function showPreview(e){
+    let pos = getGridPos(e);
+    if(!pos) return;
+    activeShape.map.forEach((row,i)=>{
+        row.forEach((cell,j)=>{
+            if(cell && pos.r+i<gridSize && pos.c+j<gridSize && !grid[pos.r+i][pos.c+j]){
+                ctx.fillStyle = 'rgba(255,255,255,0.3)';
+                ctx.fillRect((pos.c+j)*cellSize,(pos.r+i)*cellSize,cellSize,cellSize);
+            }
+        });
+    });
+}
+
+// === Lines & Score ===
+function checkLines(r,c){
     let cleared = 0;
     for(let i=0;i<gridSize;i++){
-        if(grid[i].every(v=>v)){ grid[i].fill(null); cleared++; }
-        if(grid.every(row=>row[i])){ grid.forEach(r=>r[i]=null); cleared++; }
+        if(grid[i].every(v=>v)){ grid[i].fill(null); cleared++; showFloatingScore(i, 0, cleared*100);}
+        if(grid.every(row=>row[i])){ grid.forEach(r=>r[i]=null); cleared++; showFloatingScore(0, i, cleared*100);}
     }
-
     if(cleared){
         score += cleared*100;
-        document.getElementById("score").innerText = score;
+        scoreEl.innerText = score;
         if(score>highScore){
             highScore = score;
             localStorage.setItem("highScore", highScore);
-            document.getElementById("highScore").innerText = highScore;
+            highScoreEl.innerText = highScore;
         }
     }
-
     drawGrid();
     checkGameOver();
 }
 
-// -------------------
-// Game Over
-// -------------------
+// === Floating Score Animation ===
+function showFloatingScore(r,c,points){
+    const el = document.createElement('div');
+    el.className = 'floating-score';
+    el.style.left = c*cellSize + 'px';
+    el.style.top = r*cellSize + 'px';
+    el.innerText = '+'+points;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),1000);
+}
+
+// === Game Over ===
 function checkGameOver(){
     for(let block of blockContainer.children){
         let shape = {map: JSON.parse(block.dataset.map)};
@@ -192,19 +196,18 @@ function checkGameOver(){
     document.getElementById("gameOverScreen").classList.remove("hidden");
 }
 
-// -------------------
-// Restart
-// -------------------
+// === Restart ===
 function restartGame(){
     grid = Array(gridSize).fill().map(()=>Array(gridSize).fill(null));
     score = 0;
-    document.getElementById("score").innerText = score;
+    scoreEl.innerText = score;
     document.getElementById("gameOverScreen").classList.add("hidden");
     refillDock();
     drawGrid();
 }
 
-// -------------------
-// Start Game
-// -------------------
-init();
+// === Theme Toggle (Dark / Neon / Pastel) ===
+function setTheme(t){
+    theme = t;
+    document.body.className = 'theme-'+t;
+}
